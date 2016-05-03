@@ -169,20 +169,22 @@ class QC:
         if (abs(self.ymap[J]-self.ymap[I])==1) and (self.xmap[J]== self.xmap[I]): adjbool = 1-adjbool
         return adjbool
 
-    def arrayFromZ(self, v, xt, yt):
+    def arrayFromZ(self, v, xt, yt, s):
         z= np.zeros( (self.r+2, self.c+2), dtype=complex )
         for i in range(0,self.r):
             for j in range(0,self.r):
                 if np.isnan(self.Umap[i][j])==False:
                     z[i+1][j+1] = v[self.Umap[i][j]]
-        z = z*z.conjugate()
+        z = z.real**2+z.imag**2
         #z=z.real
         #print(z)
         Ix=[]
         for i in range(0,self.r+2):
             Ix.append(scipy.integrate.simps(z[i,:], x=xt))    
         I = scipy.integrate.simps(Ix, x=yt)
-        return z/I
+        if s==0: z=z/I
+        z[z==0.0] = np.nan
+        return z
     
     def delta3(self, redE, nt, redPolyN):
         a,b = np.polyfit(redE, nt, 1)
@@ -200,7 +202,7 @@ class QC:
             Delta3[j] = Delta3[j] / (len(varDelta3))
         return Delta3 
         
-    def makeGaussian(self, fwhm=5, center=None, k=1):
+    def makeGaussian(self, p, fwhm, center):
         """ Make a square gaussian kernel.
         size is the length of a side of the square
         fwhm is full-width-half-maximum, which
@@ -222,7 +224,7 @@ class QC:
             for x in range(1,self.c+1):
                 #if np.isnan(self.Umap[x][y]) == True:
                 if np.isnan(self.Umap[x-1][y-1]) == False:
-                    gaussian.append( np.exp(-( (x-x0)**2 + (y-y0)**2 ) / (2*err**2) ) * cmath.exp(1j*k*(y-y0)) )
+                    gaussian.append( np.exp(-( (x-x0)**2 + (y-y0)**2 ) / (2*err**2) ) * cmath.exp(1j*p*(y-y0)) )
         return np.array(gaussian)#+1j*np.zeros(len(gaussian))
         
     def Propagate(self, wvfn, H, dt):
@@ -380,22 +382,12 @@ class QC:
         plt.show()
         fig.savefig('Contour_%i_%s_%s.png' %(time, self.r, self.iterations_label))
         
-    def ContourAnim(self, X, Y, z, maxtime):
-        #z[z==0.0] = np.nan
+    def ContourAnim(self, X, Y, z, maxtime, timestep):
         fig, axes = plt.subplots(nrows=2, ncols=2, sharex=True, sharey=True)
         im=[]
-        interp_meth=None
-
-#        for vert in range(0,2):
-#            for hor in range(0,2):
-#                axes[vert,hor].set_title('%i iterations' % its)
-#                im_t = axes[vert,hor].imshow(z[its][0], interpolation=interp_meth, extent=(np.amin(X), np.amax(X), np.amin(Y), np.amax(Y)), cmap=cm.gist_rainbow)
-#                its+=1
-            
+        interp_meth=None            
         fig.set_figheight(30)
         fig.set_figwidth(35)   
-        #lev = np.linspace(0,np.nanmax(z[3][0]),no_bins=500)
-        #my_cmap = plt.cm.get_cmap('gist_rainbow')
 
         def init():  
             its=0
@@ -406,16 +398,16 @@ class QC:
                     im.append(im_t)                    
                     its+=1  
             plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
-            cax = plt.axes([0.85, 0.1, 0.075, 0.8])
-            plt.colorbar(im[3], cax=cax)
+#            cax = plt.axes([0.85, 0.1, 0.075, 0.8])
+#            plt.colorbar(im[3], cax=cax)
             return 0
             
         def animate(i): 
-            plt.suptitle(r't = %i ms' % i, fontsize=30)
+            plt.suptitle(r't = %.2f s' % (i*timestep), fontsize=30)
             
             for its in range(0,4):
                 im[its].set_data(z[its][i])
-                
+                im[its].autoscale()
             cax = plt.axes([0.85, 0.1, 0.075, 0.8])
             plt.colorbar(im[3], cax=cax)
             return im
